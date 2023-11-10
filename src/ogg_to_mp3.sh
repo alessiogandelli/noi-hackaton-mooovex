@@ -1,2 +1,2 @@
 #!/bin/bash
-ffmpeg -i data/taxi.ogg -acodec mp3 taxi.mp3   
+ffmpeg -i "$1" -acodec mp3 data/taxi.mp3
