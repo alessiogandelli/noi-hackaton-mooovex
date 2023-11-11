@@ -13,6 +13,7 @@ import requests
 load_dotenv()
 
 
+llm = ChatOpenAI(model="gpt-3.5-turbo", temperature=0)
 
 # %%
 # speech to text 
@@ -30,19 +31,24 @@ def speech_to_text():
 # %%
 def parse_trip(transcript):
 # parse the text to extract the fields
-    llm = ChatOpenAI(model="gpt-3.5-turbo", temperature=0)
-    prompt = PromptTemplate.from_template("""you are a voice assistant of a taxi driver, you have to extract from his query the following fields, the starting point should be or a address or a point of interest (include the city in the address), if it is a point of interest just say the name and the place without conjunction: starting_point, end_point, number_of_passengers(int), date, time, language(en, de, it) .Format it as a JSON. The query is  {query}?""")
+    prompt = PromptTemplate.from_template("""you are a voice assistant of a taxi driver, you have to extract from his query the following fields, the starting point should be or a address or a point of interest (include the city in the address), if it is a point of interest just say the name and the place without conjunction, infer the language: starting_point, end_point, number_of_passengers(int), date, time, language(en, de, it) .Format it as a JSON. The query is  {query}?""")
     p = prompt.format(query=transcript)
     reply = llm.invoke(p)
     trip = json.loads(reply.content)
 
     return trip
 
+def confirm_trip(transcript):
+    prompt = PromptTemplate.from_template("the user have been asked if something is correct,< {query}> is the reply, you have to tell me if the user is confirming, you can only reply <yes> or <no>, lower case, without punctuation. The user could talk in italian or english or german")
+    p = prompt.format(query=transcript)
+    reply = llm.invoke(p)
+    print(reply.content)
+    return reply.content
 
 # %%
 # get google place id
 
-def get_place_id(trip):
+def get_place_id(trip, context, update):
 
     url =  'https://dev.api.mooovex.com/hackathon/autocomplete'
 
@@ -62,15 +68,16 @@ def get_place_id(trip):
         place_id_start = start_response.json()[0]['google_place_id']
 
     except:
-        print("Error with start point")
-        place_id_start = 'ChIJNfJk6gq0LBMREIhQvO0vKB4'
+        print("i did not understand the starting point\n")
+        # wait for user message 
+        place_id_start = None
 
     try:
         end_response = requests.post(url, json = data_autocomplete_end)
         place_id_end = end_response.json()[0]['google_place_id']
     except:
-        print("Error with end point")
-        place_id_end = 'ChIJLzmuIxNxgUcR4D4x6kxMH4c'
+        print("did not understand the starting point\n")        
+        place_id_end = None
 
     return place_id_start, place_id_end
 
