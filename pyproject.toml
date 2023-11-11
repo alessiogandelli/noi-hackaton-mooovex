@@ -14,6 +14,7 @@ jupyter = "^1.0.0"
 openai = "^1.2.2"
 langchain = "^0.0.334"
 python-telegram-bot = "^20.6"
+langid = "^1.1.6"
 
 
 

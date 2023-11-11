@@ -11,13 +11,14 @@ from openai import OpenAI
 import json 
 import requests
 import datetime
+import langid
 
 load_dotenv()
 
 
 llm = ChatOpenAI(model="gpt-3.5-turbo", temperature=0)
 
-base_city = 'Bolzano'
+base_city = 'ChIJSXCeQSucgkcRKkOLNE9pK2U'
 
 # %%
 # speech to text 
@@ -35,7 +36,7 @@ def speech_to_text():
 def text_to_speech(text):
     client = OpenAI()
 
-    speech_file_path = "data/speech.mp3"
+    speech_file_path = "data/reply.mp3"
     response = client.audio.speech.create(
     model="tts-1",
     voice="alloy",
@@ -47,16 +48,23 @@ def text_to_speech(text):
 # %%
 def parse_trip(transcript):
 # parse the text to extract the fields
-    prompt = PromptTemplate.from_template("""you are a voice assistant of a taxi driver, you have to extract from his query the following fields, the starting point should be or a address or a point of interest (include the city in the address) if no city is provided it is bolzano by default, if it is a point of interest just say the name and the place without conjunctions, if no date is provided write None, if no time is provided write None, infer the language: starting_point, end_point, number_of_passengers(int), date("%Y-%m-%d"), time("%H:%M:%S"), language(en, de, it) .Format it as a JSON. The query is  {query}?""")
+    prompt = PromptTemplate.from_template("""you are a voice assistant of a taxi driver, you have to extract from his query the following fields, the starting point should be or a address or a point of interest (include the city in the address), if it is a point of interest just say the name and the place without conjunctions, if no date is provided write None, if no time is provided write None, infer the language that can be it, en or de: starting_point, end_point, number_of_passengers(int), date(format it like this "%Y-%m-%d"), time(format it like this"%H:%M:%S"), language(en, de, it) .Format it as a JSON. The query is  {query}?""")
     p = prompt.format(query=transcript)
     reply = llm.invoke(p)
     trip = json.loads(reply.content)
 
-    if trip['date'] == 'None': 
+    if trip['date'] == 'None' or trip['date'] == None: 
         trip['date'] = datetime.datetime.now().strftime("%Y-%m-%d")
     
-    if trip['time'] == 'None':
+    if trip['time'] == 'None' or trip['time'] == None:
         trip['time'] = datetime.datetime.now().strftime("%H:%M:%S")
+
+    if trip['language'] == 'None':
+        langid.set_languages(['en', 'it', 'de'])  # limit detection to these languages
+        language, _ = langid.classify(transcript)
+        trip['language'] = language
+
+
 
     return trip
 
@@ -97,7 +105,7 @@ def get_place_id(trip, context, update):
 
 
     try:
-        start_response = requests.post(url, json = data_autocomplete_start)
+        start_response = requests.post(url, json = data_autocomplete_start, timeout=30)
         place_id_start = start_response.json()[0]['google_place_id']
 
     except:
@@ -108,12 +116,11 @@ def get_place_id(trip, context, update):
     try:
         end_response = requests.post(url, json = data_autocomplete_end)
         place_id_end = end_response.json()[0]['google_place_id']
-    except:
-        print("did not understand the destination \n")        
+    except Exception as e:
+        print("did not understand the destination \n", e)        
         place_id_end = None
 
     return place_id_start, place_id_end
-
 
 # %% search the route
 def search_route(place_id_start, place_id_end, trip):
@@ -135,6 +142,24 @@ def search_route(place_id_start, place_id_end, trip):
     return route_response.json()
 
 
+def generate_reply(route, trip):
+    # generate the reply
+    try:
+        msg = 'start: '+route['origin_place']['formatted_address'] + '\n'
+        msg += 'end: '+route['destination_place']['formatted_address'] + '\n'
+        msg += 'number of passangers: '+str(trip['number_of_passengers']) + '\n'
+        msg += 'date: '+str(trip['date']) + '\n'
+        msg += 'price: '+str(route['price']) + '\n'
+
+    except:
+        msg = 'error, try again'
+    
+
+    prompt = PromptTemplate.from_template("you are the taxidriver assistant, summarize the following trip in a short and syntetic message and ask to confirm, the trip, write it in the following language{language}: {query}")
+    p = prompt.format(query=msg, language=trip['language'])
+    reply = llm.invoke(p)
+    print(reply.content)
+    return reply.content
 
 
 

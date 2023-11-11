@@ -38,7 +38,13 @@ async def handle_audio(update: Update, context: CallbackContext) -> None:
 
     # se il numero di passeggeri è null, chiedi quanti sono
     if trip['number_of_passengers'] == None:
-        await update.message.reply_text("how many passengers?")
+        if trip['language'] == 'it':
+            text_to_speech("quanti passeggeri?")
+        elif trip['language'] == 'en':
+            text_to_speech("how many passengers?")
+        elif trip['language'] == 'de':
+            text_to_speech("wie viele passagiere?")
+        await update.message.reply_voice(voice=open('data/reply.mp3', 'rb'))
         trip = context.user_data['trip']
         return WAITING_FOR_PASSANGERS
     
@@ -57,13 +63,12 @@ async def handle_audio(update: Update, context: CallbackContext) -> None:
 
         #print(route)
 
-        msg = 'start: '+route['origin_place']['formatted_address'] + '\n'
-        msg += 'end: '+route['destination_place']['formatted_address'] + '\n'
-        msg += 'price: '+str(route['price']) + '\n'
 
-        if route['distanceMeters'] > 100000:
-            await update.message.reply_text("warning, the trip is more than 100km, are you sure the origin and destination are correct?")
-        await update.message.reply_text(msg+ "confirm? (yes/no)")
+        reply = generate_reply(route, trip)
+
+        text_to_speech(reply)
+
+        await update.message.reply_voice(voice=open('data/reply.mp3', 'rb'))
 
         return WAITING_FOR_REPLY
     
@@ -91,25 +96,27 @@ async def handle_passangers(update: Update, context: CallbackContext) -> None:
         
         route = search_route(place_id_start, place_id_end, trip)
         #print(route)
-        try:
-            msg = 'start: '+route['origin_place']['formatted_address'] + '\n'
-            msg += 'end: '+route['destination_place']['formatted_address'] + '\n'
-            msg += 'number of passangers: '+str(trip['number_of_passengers']) + '\n'
-            msg += 'date: '+str(trip['date']) + '\n'
-            msg += 'price: '+str(route['price']) + '\n'
-        except:
-            await update.message.reply_text("error, try again")
-            return ConversationHandler.END
-        
-        if route['distanceMeters'] > 100000:
-            await update.message.reply_text("warning, the trip is more than 100km, are you sure the origin and destination are correct?")
-        await update.message.reply_text(msg+ "confirm? (yes/no)")
+ 
+
+        reply = generate_reply(route, trip)
+
+        text_to_speech(reply)
+
+        await update.message.reply_voice(voice=open('data/reply.mp3', 'rb'))
+
 
 
 
         return WAITING_FOR_REPLY
     else:
-        await update.message.reply_text('number of passangers not valid, try again')
+        if trip['language'] == 'en':
+            text_to_speech("number of passangers not valid, try again")
+        elif trip['language'] == 'it':
+            text_to_speech("numero di passeggeri non valido, riprova")
+        elif trip['language'] == 'de':
+            text_to_speech("anzahl der passagiere nicht gültig, versuchen sie es erneut")
+            
+        await update.message.reply_voice(voice=open('data/reply.mp3', 'rb'))
 
 async def handle_reply(update: Update, context: CallbackContext) -> None:
     print('--handle confirm')
