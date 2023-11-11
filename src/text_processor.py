@@ -17,6 +17,8 @@ load_dotenv()
 
 llm = ChatOpenAI(model="gpt-3.5-turbo", temperature=0)
 
+base_city = 'Bolzano'
+
 # %%
 # speech to text 
 def speech_to_text():
@@ -45,7 +47,7 @@ def text_to_speech(text):
 # %%
 def parse_trip(transcript):
 # parse the text to extract the fields
-    prompt = PromptTemplate.from_template("""you are a voice assistant of a taxi driver, you have to extract from his query the following fields, the starting point should be or a address or a point of interest (include the city in the address), if it is a point of interest just say the name and the place without conjunctions, if no date is provided write None, if no time is provided write None, infer the language: starting_point, end_point, number_of_passengers(int), date, time, language(en, de, it) .Format it as a JSON. The query is  {query}?""")
+    prompt = PromptTemplate.from_template("""you are a voice assistant of a taxi driver, you have to extract from his query the following fields, the starting point should be or a address or a point of interest (include the city in the address) if no city is provided it is bolzano by default, if it is a point of interest just say the name and the place without conjunctions, if no date is provided write None, if no time is provided write None, infer the language: starting_point, end_point, number_of_passengers(int), date("%Y-%m-%d"), time("%H:%M:%S"), language(en, de, it) .Format it as a JSON. The query is  {query}?""")
     p = prompt.format(query=transcript)
     reply = llm.invoke(p)
     trip = json.loads(reply.content)
@@ -90,6 +92,8 @@ def get_place_id(trip, context, update):
         'query': trip['end_point'],
         'language': trip['language']
     }
+
+    print(trip)
 
 
     try:
