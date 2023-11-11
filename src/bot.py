@@ -4,8 +4,9 @@ from telegram.ext import filters, MessageHandler, Updater
 import os 
 from dotenv import load_dotenv
 import subprocess
-from text_processor import speech_to_text, parse_trip, get_place_id, search_route, confirm_trip
+from text_processor import *
 WAITING_FOR_REPLY = 1
+WAITING_FOR_PASSANGERS = 2
 load_dotenv()
 
 convert_script = "src/ogg_to_mp3.sh"
@@ -25,6 +26,7 @@ async def save_file(context, update):
     subprocess.call([convert_script, input_file])
 
 
+
 async def handle_audio(update: Update, context: CallbackContext) -> None:
 
     await save_file(context, update)
@@ -33,34 +35,72 @@ async def handle_audio(update: Update, context: CallbackContext) -> None:
     trip = parse_trip(transcript)
     context.user_data['trip'] = trip
 
-    await update.message.reply_text(trip)
-
-    #place_id_start, place_id_end = get_place_id(trip, context, update)
-    #print(place_id_start, place_id_end)
-
-    return WAITING_FOR_REPLY
-    #await process_audio(update, context)
-
-async def process_audio(update: Update, context: CallbackContext):
-    transcript = speech_to_text()
-    print(transcript)
-    trip = parse_trip(transcript)
-
-    await update.message.reply_text(trip)
-
-    #place_id_start, place_id_end = get_place_id(trip, context, update)
-    #print(place_id_start, place_id_end)
-
-    return WAITING_FOR_REPLY
+    # se il numero di passeggeri è null, chiedi quanti sono
+    if trip['number_of_passengers'] == None:
+        await update.message.reply_text("how many passengers?")
+        trip = context.user_data['trip']
+        return WAITING_FOR_PASSANGERS
     
-    #route = search_route(place_id_start, place_id_end, trip)
+    else:
+        trip = context.user_data['trip']
+        place_id_start, place_id_end = get_place_id(trip, context, update)
+        if place_id_start == None:
+            await update.message.reply_text("start not found")
+            return ConversationHandler.END
+    
+        if place_id_end == None:
+            await update.message.reply_text("end not found")
+            return ConversationHandler.END
+        
+        route = search_route(place_id_start, place_id_end, trip)
 
-    #update.message.reply_text(f'Your trip start at {route.origin_place.formatted_address} \n and end at {route.destination_place.formatted_address} \n the price is {route.price}')
+        print(trip)
+        print(route)
+
+        msg = 'start: '+route['origin_place']['formatted_address'] + '\n'
+        msg += 'end: '+route['destination_place']['formatted_address'] + '\n'
+        msg += 'price: '+str(route['price']) + '\n'
+
+        if route['distanceMeters'] > 100000:
+            await update.message.reply_text("warning, the trip is more than 100km, are you sure the origin and destination are correct?")
+        await update.message.reply_text(msg+ "confirm? (yes/no)")
+
+        return WAITING_FOR_REPLY
+    
+
+
+
+async def handle_passangers(update: Update, context: CallbackContext) -> None:
+    await save_file(context, update)
+    transcript = speech_to_text()
+    answer = number_of_passangers(transcript)
+
+    context.user_data['trip']['number_of_passengers'] = answer
+
+
+
+    if answer < 8:
+        await update.message.reply_text('number of passangers: '+str(answer))
+        trip = context.user_data['trip']
+        place_id_start, place_id_end = get_place_id(trip, context, update)
+        if place_id_start == None:
+            await update.message.reply_text("start not found try again")
+            return ConversationHandler.END
+    
+        if place_id_end == None:
+            await update.message.reply_text("end not found try again")
+            return ConversationHandler.END
+
+        return WAITING_FOR_REPLY
+    else:
+        await update.message.reply_text('number of passangers not valid, try again')
+
+
 
 
 async def handle_reply(update: Update, context: CallbackContext) -> None:
 
-    await save_file(context, update)
+    await save_file(context, update) # listen audio 
     
     transcript = speech_to_text()
     answer = confirm_trip(transcript)
@@ -73,15 +113,28 @@ async def handle_reply(update: Update, context: CallbackContext) -> None:
         await update.message.reply_text("confirmed")
         trip = context.user_data['trip']
         place_id_start, place_id_end = get_place_id(trip, context, update)
+
+        if place_id_start == None:
+            await update.message.reply_text("start not found")
+            return ConversationHandler.END
+    
+        if place_id_end == None:
+            await update.message.reply_text("end not found")
+            return ConversationHandler.END
+
         route = search_route(place_id_start, place_id_end, trip)
 
         msg = 'start: '+route['origin_place']['formatted_address'] + '\n'
         msg += 'end: '+route['destination_place']['formatted_address'] + '\n'
         msg += 'price: '+str(route['price']) + '\n'
+
+        if route['distanceMeters'] > 100000:
+            await update.message.reply_text("warning, the trip is more than 100km, are you sure the origin and destination are correct?")
         await update.message.reply_text(msg)
 
     else:
-        await update.message.reply_text("not confirmed")
+        await update.message.reply_text("not confirmed, riprova")
+
 
     return ConversationHandler.END
 
@@ -94,6 +147,8 @@ def main() -> None:
         entry_points=[MessageHandler(filters.VOICE, handle_audio)],
         states={
                 WAITING_FOR_REPLY: [MessageHandler(filters.VOICE & ~filters.COMMAND, handle_reply)],
+                WAITING_FOR_PASSANGERS: [MessageHandler(filters.VOICE & ~filters.COMMAND, handle_passangers)]
+                
             },
         fallbacks=[CommandHandler('cancel', lambda update, context: ConversationHandler.END)],
     )
