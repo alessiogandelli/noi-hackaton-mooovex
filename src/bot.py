@@ -14,6 +14,7 @@ input_file = "data/taxi.ogg"
 
 TOKEN = os.getenv("BOT_TOKEN")
 
+# receive the  voice message from telegram, convert the ogg to mp3 e save it in data/taxi.mp3
 async def listen_audio(context, update):
     file = await context.bot.get_file(update.message.voice.file_id)
 
@@ -32,8 +33,9 @@ async def handle_audio(update: Update, context: CallbackContext) -> None:
 
     await listen_audio(context, update)
     transcript = speech_to_text() # transcript the audio
-    print(transcript)
-    trip = parse_trip(transcript) # parse the text to extract the fields
+    print(transcript)   
+    # parse the text to extract the fields
+    trip = parse_trip(transcript) 
     context.user_data['trip'] = trip
 
     # se il numero di passeggeri è null, chiedi quanti sono
@@ -71,7 +73,8 @@ async def handle_audio(update: Update, context: CallbackContext) -> None:
         await update.message.reply_voice(voice=open('data/reply.mp3', 'rb'))
 
         return WAITING_FOR_REPLY
-    
+
+# receive the number of passangers and then queries the trip to the api 
 async def handle_passangers(update: Update, context: CallbackContext) -> None:
     print('--handle passangers')
     await listen_audio(context, update)
@@ -83,7 +86,7 @@ async def handle_passangers(update: Update, context: CallbackContext) -> None:
 
 
     if answer < 8:
-        await update.message.reply_text('number of passangers: '+str(answer))
+        await update.message.reply_text('number of passengers: '+str(answer))
         trip = context.user_data['trip']
         place_id_start, place_id_end = get_place_id(trip, context, update)
         if place_id_start == None:
@@ -115,37 +118,34 @@ async def handle_passangers(update: Update, context: CallbackContext) -> None:
             text_to_speech("numero di passeggeri non valido, riprova")
         elif trip['language'] == 'de':
             text_to_speech("anzahl der passagiere nicht gültig, versuchen sie es erneut")
-            
+
         await update.message.reply_voice(voice=open('data/reply.mp3', 'rb'))
 
+# waits for confirmation and then depending on the affirmative or negative answer, confirms the trip or not
 async def handle_reply(update: Update, context: CallbackContext) -> None:
     print('--handle confirm')
     await listen_audio(context, update) # listen audio 
     
-    transcript = speech_to_text()
-    answer = confirm_trip(transcript)
-    #to lowercase
-    answer = answer.lower()
-    #remove punctuation
-    answer = answer.replace(".", "")
+    transcript = speech_to_text() # transcript audio
+    answer = confirm_trip(transcript) # get yes or not 
+    answer = answer.lower().replace(".", "")#to lowercase and remove punctiation
 
+
+    #confirm the trip 
     if answer == "yes" or answer == "ja" or answer == "si":
         await update.message.reply_text("confirmed")
-        
-        
-
+    # do not confirm the trip 
     else:
         await update.message.reply_text("not confirmed, riprova")
-        
 
     return ConversationHandler.END
     
-
 def main() -> None:
     
+    # create bot 
     app = ApplicationBuilder().token(TOKEN).build()
 
-
+    # conversation handler, starts with handle_audio, then goes to handle_reply, if no passangers are provided goes to handle_passangers and then to handle_reply
     conv_handler = ConversationHandler(
         entry_points=[MessageHandler(filters.VOICE, handle_audio)],
         states={
@@ -158,10 +158,7 @@ def main() -> None:
     #app.add_handler(MessageHandler(filters.VOICE, handle_audio))
     app.add_handler(conv_handler)
 
-
-
     app.run_polling()
-
 
 if __name__ == '__main__':
     main()

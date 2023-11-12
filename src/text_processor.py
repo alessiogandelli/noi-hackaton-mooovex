@@ -15,13 +15,11 @@ import langid
 
 load_dotenv()
 
-
 llm = ChatOpenAI(model="gpt-3.5-turbo", temperature=0)
 
 base_city = 'ChIJSXCeQSucgkcRKkOLNE9pK2U'
 
-# %%
-# speech to text 
+# transcript the audio 
 def speech_to_text():
     
     client = OpenAI()
@@ -32,7 +30,7 @@ def speech_to_text():
     )
     return transcript.text
 
-
+# create a mp3 file from a text
 def text_to_speech(text):
     client = OpenAI()
 
@@ -43,11 +41,9 @@ def text_to_speech(text):
     input=text
     )
     response.stream_to_file(speech_file_path)
-    
 
-# %%
-def parse_trip(transcript):
 # parse the text to extract the fields
+def parse_trip(transcript):
     prompt = PromptTemplate.from_template("""you are a voice assistant of a taxi driver, you have to extract from his query the following fields, the starting point should be or a address or a point of interest (include the city in the address), if it is a point of interest just say the name and the place without conjunctions, if no date is provided write None, if no time is provided write None, infer the language that can be it, en or de: starting_point, end_point, number_of_passengers(int), date(format it like this "%Y-%m-%d"), time(format it like this"%H:%M:%S"), language(en, de, it) .Format it as a JSON. The query is  {query}?""")
     p = prompt.format(query=transcript)
     reply = llm.invoke(p)
@@ -68,14 +64,16 @@ def parse_trip(transcript):
 
     return trip
 
+# parse the answer of the users and return or yes or no
 def confirm_trip(transcript):
     prompt = PromptTemplate.from_template("the user have been asked if something is correct,< {query}> is the reply, you have to tell me if the user is confirming, you can only reply <yes> or <no>, lower case, without punctuation. The user could talk in italian or english or german")
     p = prompt.format(query=transcript)
     reply = llm.invoke(p)
     print(reply.content)
+    # maybe return a boolean and interpret it here 
     return reply.content
 
-
+# return the number of passengers in the voice message and return it 
 def number_of_passangers(transcript):
 
     prompt = PromptTemplate.from_template("how many passengers? reply with json format with field named 'passengers' type int: {query}")
@@ -84,9 +82,8 @@ def number_of_passangers(transcript):
     n = json.loads(reply.content)['passengers']
     print(n)
     return n
-# %%
-# get google place id
 
+# get google place id from mooovex api
 def get_place_id(trip, context, update):
 
     url =  'https://dev.api.mooovex.com/hackathon/autocomplete'
@@ -108,7 +105,7 @@ def get_place_id(trip, context, update):
         start_response = requests.post(url, json = data_autocomplete_start, timeout=30)
         place_id_start = start_response.json()[0]['google_place_id']
 
-    except:
+    except Exception as e:
         print("did not understand the starting point\n")
         # wait for user message 
         place_id_start = None
@@ -122,7 +119,7 @@ def get_place_id(trip, context, update):
 
     return place_id_start, place_id_end
 
-# %% search the route
+# search the route in mooovex api
 def search_route(place_id_start, place_id_end, trip):
     url_route = 'https://dev.api.mooovex.com/hackathon/routedetails'
 
@@ -141,13 +138,13 @@ def search_route(place_id_start, place_id_end, trip):
 
     return route_response.json()
 
-
+# generate the reply that the bot should say
 def generate_reply(route, trip):
     # generate the reply
     try:
         msg = 'start: '+route['origin_place']['formatted_address'] + '\n'
         msg += 'end: '+route['destination_place']['formatted_address'] + '\n'
-        msg += 'number of passangers: '+str(trip['number_of_passengers']) + '\n'
+        msg += 'number of passengers: '+str(trip['number_of_passengers']) + '\n'
         msg += 'date: '+str(trip['date']) + '\n'
         msg += 'price: '+str(route['price']) + '\n'
 
