@@ -12,12 +12,24 @@ import json
 import requests
 import datetime
 import langid
+import subprocess
 
 load_dotenv()
 
 llm = ChatOpenAI(model="gpt-3.5-turbo", temperature=0)
 
 base_city = 'ChIJSXCeQSucgkcRKkOLNE9pK2U'
+
+async def listen_audio(context, update):
+    file = await context.bot.get_file(update.message.voice.file_id)
+
+    print("file_id: " + str(update.message.voice.file_id))
+    #save file 
+    with open('data/taxi.ogg', 'wb') as f:
+        await file.download_to_memory(f)
+    
+    #convert file
+    subprocess.call([convert_script, input_file])
 
 # transcript the audio 
 def speech_to_text():

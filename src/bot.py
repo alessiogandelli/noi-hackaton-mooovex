@@ -3,8 +3,8 @@ from telegram.ext import ApplicationBuilder, ContextTypes, CommandHandler, Conve
 from telegram.ext import filters, MessageHandler, Updater
 import os 
 from dotenv import load_dotenv
-import subprocess
 from text_processor import *
+
 WAITING_FOR_REPLY = 1
 WAITING_FOR_PASSANGERS = 2
 load_dotenv()
@@ -14,17 +14,8 @@ input_file = "data/taxi.ogg"
 
 TOKEN = os.getenv("BOT_TOKEN")
 
-# receive the  voice message from telegram, convert the ogg to mp3 e save it in data/taxi.mp3
-async def listen_audio(context, update):
-    file = await context.bot.get_file(update.message.voice.file_id)
 
-    print("file_id: " + str(update.message.voice.file_id))
-    #save file 
-    with open('data/taxi.ogg', 'wb') as f:
-        await file.download_to_memory(f)
-    
-    #convert file
-    subprocess.call([convert_script, input_file])
+#------------------Message Handlers------------------#
 
 # first step, receive trip info from the driver, (start, destination, number of passangers, date, time)
 async def handle_audio(update: Update, context: CallbackContext) -> None:
