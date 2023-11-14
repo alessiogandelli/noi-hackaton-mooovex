@@ -1,5 +1,5 @@
 # Mooovex challenge 
-This is the winner (project)[https://hackathon.bz.it/project/studybuddy] of the NOI Techpark Hackathon 2023.
+This is the winner [project](https://hackathon.bz.it/project/studybuddy) of the NOI Techpark Hackathon 2023.
 
 The goal of the challenge is to develop a voice interface that allows the taxi driver to add rides to the system. 
 The user should send a voice message to the telegram bot with the following information:
